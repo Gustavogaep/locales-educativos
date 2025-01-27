@@ -26,18 +26,18 @@ data_csv                <- file.path(data_path, "paraShiny4.csv")
 # --------------------------------------------------------------------------------
 departamentos <- st_read(shapefile_departamentos, quiet = TRUE) %>%
   st_transform(crs = 4326) %>%
-  ms_simplify(keep = 0.5, keep_shapes = TRUE) %>%
+  ms_simplify(keep = 1, keep_shapes = TRUE) %>%
   mutate(FIRST_IDDP = as.character(as.numeric(FIRST_IDDP)))
 
 provincias <- st_read(shapefile_provincias, quiet = TRUE) %>%
   st_transform(crs = 4326) %>%
-  ms_simplify(keep = 0.5, keep_shapes = TRUE) %>%
+  ms_simplify(keep = 1, keep_shapes = TRUE) %>%
   mutate(FIRST_IDPR = as.character(as.numeric(FIRST_IDPR)))
 
 distritos <- st_read(shapefile_distritos, quiet = TRUE) %>%
   filter(!st_is_empty(geometry)) %>%
   st_transform(crs = 4326) %>%
-  ms_simplify(keep = 0.5, keep_shapes = TRUE) %>%
+  ms_simplify(keep = 1, keep_shapes = TRUE) %>%
   mutate(IDDIST = as.character(as.numeric(IDDIST)))
 
 # --------------------------------------------------------------------------------
@@ -119,7 +119,20 @@ for (variable in names(VAR_MAPPING)) {
 # --------------------------------------------------------------------------------
 ui <- dashboardPage(
   skin = "blue",
-  dashboardHeader(title = "Locales 2023"),
+  dashboardHeader(
+    title = "Locales 2023",
+    # Aquí añadimos el botón a la derecha:
+    tags$li(
+      a(
+        href = "https://docs.google.com/spreadsheets/d/1yXZcW4soKpdwUuA-uCNaYRG7P6_lOU3Z/edit?usp=sharing&ouid=100865139892644416054&rtpof=true&sd=true",
+        target = "_blank",
+        class = "btn btn-success",
+        style = "margin: 4px 6px; padding: 4px 8px; color: #FFFFFF;", 
+        "Obtener dataset"
+      ),
+      class = "dropdown"
+    )
+  ),
   
   dashboardSidebar(
     sidebarMenu(
@@ -302,19 +315,31 @@ server <- function(input, output, session) {
     )
   })
   
-  # C) Forzar valor por defecto tras cargar 'filtro_variable'
+  # C) Forzar valor por defecto tras cambiar la variable
   observeEvent(input$variable, {
     var_elegida <- input$variable
     valores_unicos <- sort(unique(data[[var_elegida]]))
     
     if (length(valores_unicos) > 0) {
-      # Si la variable es FUENTE_AGUA, forzamos "Red publica" si existe
+      # Definir reglas para default según la variable elegida
       if (var_elegida == "FUENTE_AGUA" && "Red publica" %in% valores_unicos) {
         updateSelectInput(session, "filtro_variable",
                           choices  = valores_unicos,
                           selected = "Red publica")
+      } else if (var_elegida == "TIPO_DESAGUE" && "Red publica" %in% valores_unicos) {
+        updateSelectInput(session, "filtro_variable",
+                          choices  = valores_unicos,
+                          selected = "Red publica")
+      } else if (var_elegida == "FUENTE_ELEC" && "Red publica" %in% valores_unicos) {
+        updateSelectInput(session, "filtro_variable",
+                          choices  = valores_unicos,
+                          selected = "Red publica")
+      } else if (var_elegida == "servbasic" && "3 serv basicos" %in% valores_unicos) {
+        updateSelectInput(session, "filtro_variable",
+                          choices  = valores_unicos,
+                          selected = "3 serv basicos")
       } else {
-        # De lo contrario, si no hay selección o es inválida
+        # Si no hay regla específica o el valor por defecto no existe, tomamos el primero
         if (is.null(input$filtro_variable) || !(input$filtro_variable %in% valores_unicos)) {
           updateSelectInput(session, "filtro_variable",
                             choices  = valores_unicos,
@@ -538,7 +563,7 @@ server <- function(input, output, session) {
   })
   
   # --------------------------------------------------------------------------------
-  # Render del gráfico de barras (ahora horizontal)
+  # Render del gráfico de barras (horizontal)
   # --------------------------------------------------------------------------------
   output$grafico_barras <- renderPlot({
     req(datosDeptoBarras())
@@ -549,7 +574,6 @@ server <- function(input, output, session) {
     # Ordenar de mayor a menor
     df_res <- df_res %>% arrange(desc(proporcion))
     
-    # Barras horizontales con coord_flip()
     ggplot(df_res, aes(x = reorder(name_territorio, proporcion), y = proporcion)) +
       geom_col(fill = "steelblue") +
       geom_text(aes(label = scales::percent(proporcion, accuracy = 0.1)),
@@ -564,8 +588,8 @@ server <- function(input, output, session) {
       theme(
         plot.title = element_text(hjust = 0.5)
       ) +
-      # Ajuste para que las etiquetas no se salgan
-      scale_y_continuous(labels = scales::percent_format(accuracy = 1), expand = expansion(mult = c(0, 0.1)))
+      scale_y_continuous(labels = scales::percent_format(accuracy = 1), 
+                         expand = expansion(mult = c(0, 0.1)))
   })
   
   # --------------------------------------------------------------------------------
@@ -656,4 +680,3 @@ server <- function(input, output, session) {
 # 8) Lanzar la aplicación
 # --------------------------------------------------------------------------------
 shinyApp(ui, server)
-
